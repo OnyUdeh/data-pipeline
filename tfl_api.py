@@ -1,18 +1,7 @@
 """Functions for fetching line status data from the TfL Unified API."""
 
-import time
-from datetime import datetime, timezone
-
-import requests
-
-BASE_URL = "https://api.tfl.gov.uk"
-
-
-"""Functions for fetching line status data from the TfL Unified API."""
-
 import logging
 import time
-from datetime import datetime, timezone
 
 import requests
 
@@ -60,17 +49,20 @@ def parse_line(line: dict, fetched_at: str) -> dict:
         "fetched_at": fetched_at,
     }
 
-def fetch_all_statuses(modes: list[str], app_key: str | None = None) -> list[dict]:
-    """Fetch and clean line statuses for several modes, skipping any that fail."""
-    fetched_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    records = []
+def fetch_all_raw(modes: list[str], app_key: str | None = None) -> dict[str, list[dict]]:
+    """Fetch raw line statuses for several modes, skipping any that fail."""
+    raw = {}
     for mode in modes:
         try:
-            lines = fetch_line_statuses(mode, app_key)
+            raw[mode] = fetch_line_statuses(mode, app_key)
         except TflApiError as error:
             logger.error("Skipping %s: %s", mode, error)
             continue
-        records.extend(parse_line(line, fetched_at) for line in lines)
-        logger.info("Fetched %d lines for %s", len(lines), mode)
+        logger.info("Fetched %d lines for %s", len(raw[mode]), mode)
         time.sleep(1)
-    return records
+    return raw
+
+
+def parse_all(raw: dict[str, list[dict]], fetched_at: str) -> list[dict]:
+    """Turn the raw responses for every mode into one list of clean records."""
+    return [parse_line(line, fetched_at) for lines in raw.values() for line in lines]
